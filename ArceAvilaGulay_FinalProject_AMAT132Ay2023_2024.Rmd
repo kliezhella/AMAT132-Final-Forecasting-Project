@@ -1,0 +1,689 @@
+---
+title: 'Forecasting Rice Prices in Mindanao: A Comparative Analysis Using Time Series
+  Decomposition, Exponential Smoothing, and ARIMA Models'
+author: "Eve Marie Arce | Lyzly Kliezhella Avila | Marian Elloisa Gulay"
+date: "2024-06-04"
+output:
+  html_document: default
+---
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+```{=html}
+<style type="text/css">
+body {
+  font-family: 'Times New Roman', Times, serif;
+  line-height: 1.5;
+  margin: 1in;
+  font-size: 12pt;
+  text-align: justify;
+}
+
+p, li {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  text-align: justify;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+h1.title{
+  text-align: center;
+}
+
+h4.author{
+  text-align: center;
+}
+
+h4.date{
+  text-align: center;
+}
+
+p.caption {
+  text-align: center;
+}
+</style>
+```
+
+## 1. INTRODUCTION
+
+This study delves into the application and analysis of various techniques and models to forecast prices of variations of rice – Regular-Milled and Well-Milled per kilogram in Mindanao which aims to provide insights into the state of prices of the said staple food. This study demonstrates reliable predictions of the future prices of rice that can contribute to informed decision-making and resource allocation of various stakeholders for secure rice prices and supply for Mindanao and, in turn, the Philippine economy.
+  
+### BACKGROUND OF THE STUDY
+
+Rice is the key staple of Asia, particularly Southeast Asia, and is one of its most widely grown crops. [1] For the Philippines, rice is considered a political commodity and a major source of agricultural employment for Filipinos. [2] Despite the increasing rice prices, most of the population will still buy kilos upon kilos of grain daily to feed their families. [3] In addressing this problem, there is a need to forecast future rice prices to aid various stakeholders in making informed decisions. By employing time series analysis and forecasting techniques and methods, particularly decomposition, exponential smoothing, and ARIMA models, researchers can predict future trends and compare models to see which exhibits are most accurate and reliable.  
+
+### 1.1 OBJECTIVES
+
+This study aims to analyze the rice prices in Mindanao, which is crucial to understanding the rice condition and supply. By employing various forecasting techniques like time series analysis, ARIMA models, the naïve method, and exponential smoothing (including Error, Trend, Seasonality Model, Holt’s linear and Holt-Winters models Additive and Multiplicative), the authors aim to predict future rice price trends. Furthermore, the study seeks to offer informed predictions and reliable estimates, providing accurate rice price forecasts for the period from January 2024 to December 2028.
+
+### 1.2 SCOPE
+
+The scope of the study consisted of the prices of two distinct rice varieties, Regular-Milled Rice and Well-Milled Rice, collected from https://openstat.psa.gov.ph/. Monthly regional data of Regions IX-XIII and Autonomous Region in Muslim Mindanao (ARMM) from the years 1990-2023 were the only ones considered. The regional data was then mainly categorized per rice variety. For each rice variety, the monthly average of all six regions was then collected and used as the basis for the time series.
+
+### 1.3	SIGNIFICANCE
+
+The outcome of this study can benefit consumers, farmers, businesses, food authorities, researchers, and the academic community through informed financial planning and effective policy measures.
+
+
+## 2. METHODOLOGY
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+```{r, include=FALSE}
+library('readxl')
+library('fpp3')
+library('tidyverse')
+library('stlplus')
+library('forecast')
+library('gridExtra')
+library('tseries')
+library('MuMIn')
+library('dplyr')
+```
+
+### DATA PREPROCESSING
+
+The authors obtained the dataset from OpenStat, an online database provided by the Philippine Statistics Authority (PSA). The dataset encompasses the monthly prices of Regular-Milled and Well-Milled Rice from January 1990 to December 2023 in the regions of Mindanao. The regions having incomplete values for the two types of rice were excluded for simplification. Since the available dataset is the rice prices per month per region in Mindanao, the authors needed to compute the average monthly rice prices of the regions so that each month has only one value. The average monthly rice prices in Mindanao were then used as the dataset for model fitting.
+
+```{r, include=FALSE}
+Regular_data <- read_excel("C:/Users/Kliezhella/Downloads/DATASET/Mindanao RicePrices.xlsx", sheet = "Regular")
+Well_data <- read_excel("C:/Users/Kliezhella/Downloads/DATASET/Mindanao RicePrices.xlsx", sheet = "Well")
+```
+```{r, include=FALSE}
+Reg_price <- Regular_data %>%
+  mutate(Month = 1:n()) %>%
+  gather(Year, value, -Month) %>%
+  arrange(Year, Month) %>%
+  {ts(.$value, start = c(1990, 1), frequency = 12)}
+
+Well_price <- Well_data %>%
+  mutate(Month = 1:n()) %>%
+  gather(Year, value, -Month) %>%
+  arrange(Year, Month) %>%
+  {ts(.$value, start = c(1990, 1), frequency = 12)}
+```
+```{r, include=FALSE}
+Reg_price_tsibble <- as_tsibble(Reg_price, index = Month)
+Well_price_tsibble <- as_tsibble(Well_price, index = Month)
+```
+
+### FEATURE CONSTRUCTION
+```{r}
+autoplot(Reg_price) +
+  ggtitle("Regular-Milled Rice Price Time Series") +
+  ylab("Price") +
+  xlab("Time")
+autoplot(Well_price) +
+  ggtitle("Well-Milled Rice Price Time Series") +
+  ylab("Price") +
+  xlab("Time")
+```
+
+The dataset was transformed into a time series object and decomposed into its trend, seasonality, and residuals using STL decomposition. Based on the decomposition plot, the dataset has a slow-increasing trend. There is also a hint of subtle seasonality, but it cannot be assessed clearly.
+
+```{r}
+Reg_SPlot <- Reg_price_tsibble %>%
+  gg_season(value, labels = "both") +
+  labs(y = "Price",
+       title = "Seasonal plot: Regular-Milled Rice Prices in Mindanao") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+Well_SPlot <- Well_price_tsibble %>%
+  gg_season(value, labels = "both") +
+  labs(y = "Price",
+       title = "Seasonal plot: Well-Milled Rice Prices in Mindanao") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+Reg_LPlot <- gg_lag(Reg_price_tsibble, value)+
+  labs(title = "Lag plot: Regular-Milled Rice Prices in Mindanao")
+Well_LPlot <- gg_lag(Well_price_tsibble, value)+
+  labs(title = "Lag plot: Well-Milled Rice Prices in Mindanao")
+
+print(Reg_SPlot)
+print(Reg_LPlot)
+print(Well_SPlot)
+print(Well_LPlot)
+```
+
+With this, the authors incorporate a seasonal-lag plot to comprehensively view how rice prices vary every month each year and to show the relationship between rice prices at different time lags. As shown in the seasonal-lag plot, the dataset has no seasonality since no clear peaks constantly occur over time. On the other hand, the lag plots show a linear relationship, indicating significant autocorrelation in the time series data. This suggests that the rice prices are highly dependent on their previous values. The strength of the autocorrelation decreases as the lag increases, but it remains significant even up to lag 9. The strong autocorrelation implies that past values are good predictors of future values, which can be leveraged in time series forecasting models such as ARIMA.
+
+```{r}
+Reg_dcmp <- stlplus(Reg_price, s.window = "periodic")
+Well_dcmp <- stlplus(Well_price, s.window = "periodic")
+plot(Reg_dcmp, main= "Time Series Decomposition Plot: Regular-Milled Rice")
+plot(Well_dcmp, main= "Time Series Decomposition Plot: Well-Milled Rice")
+```
+
+The dataset was divided into a training set and a testing set for both Regular-Milled and Well-Milled. The train-test split is in an 80:20 ratio – 80% for the training set (January 1990 to February 2017) and 20% for the test set (March 2017 – December 2023). The 80:20 split is a commonly used ratio justified by the Pareto principle [4]. In time series forecasting, the train-test split is a popular technique since it guarantees the model's dependability and ability to predict future values accurately [5]. 
+
+```{r}
+R.training.set <- window(Reg_price, end = c(2017, 2))
+R.test.set <- window(Reg_price, start = c(2017, 3))
+W.training.set <- window(Well_price, end = c(2017, 2))
+W.test.set <- window(Well_price, start = c(2017, 3))
+```
+
+### FEATURE SELECTION AND TRANSFORMATION
+
+Upon checking the data using the Augmented-Dickey Fuller Test (ADF) with k=12, the authors observed that it is non-stationary since the p-values are greater than 0.05 with 0.6078 and 0.6112 for Regular-Milled and Well-Milled, respectively. For the data to be stationary, the datasets were differenced where d=1 to ensure that the p-values were less than 0.05. After differencing, the p-values become 0.01 for both Regular and Well-Milled Rice.
+
+```{r}
+adf.test(R.training.set, k = 12)
+adf.test(W.training.set, k = 12)
+
+R.data.ts.d1 <- diff(R.training.set, differences = 1)
+W.data.ts.d1 <- diff(W.training.set, differences = 1)
+
+adf.test(R.data.ts.d1, k = 12)
+adf.test(W.data.ts.d1, k = 12)
+
+forecast::tsdisplay(R.data.ts.d1)
+forecast::tsdisplay(W.data.ts.d1)
+```
+
+The authors then proceeded to plot the differenced data alongside the ACF and PACF plots for regular-milled and well-milled rice prices. The purpose of this is to determine possible p and q values of a non-seasonal ARIMA model to be estimated with the use of these plots [6]. 
+
+### MODEL TRAINING
+#### ARIMA Models
+
+Comparing various ARIMA models, choosing the one that exhibits the lowest Corrected Akaike’s Information Criterion (AICc) is essential.
+The authors focused on the ARIMA(p,d,q) model throughout this process. For the regular-milled rice, the PACF plot of the differenced (d=1) data shows significant spikes at lag 1 then drops gradually and shows no spikes beyond lag 11. While the ACF plot exhibits a cyclical pattern starting from lag 9 with a significant spike at lag 1. From there, the authors compiled multiple significant orders of ARIMA. 
+
+```{r, include=FALSE}
+R.model_1_1_1 <- Arima(R.training.set, order = c(1, 1, 1))
+R.model_3_1_1 <- Arima(R.training.set, order = c(3, 1, 1))
+R.model_6_1_1 <- Arima(R.training.set, order = c(6, 1, 1))
+R.model_7_1_1 <- Arima(R.training.set, order = c(7, 1, 1))
+R.model_9_1_1 <- Arima(R.training.set, order = c(9, 1, 1))
+R.model_1_1_3 <- Arima(R.training.set, order = c(1, 1, 3))
+R.model_3_1_3 <- Arima(R.training.set, order = c(3, 1, 3))
+R.model_6_1_3 <- Arima(R.training.set, order = c(6, 1, 3))
+R.model_7_1_3 <- Arima(R.training.set, order = c(7, 1, 3))
+R.model_9_1_3 <- Arima(R.training.set, order = c(9, 1, 3))
+R.model_1_1_4 <- Arima(R.training.set, order = c(1, 1, 4))
+R.model_3_1_4 <- Arima(R.training.set, order = c(3, 1, 4))
+R.model_6_1_4 <- Arima(R.training.set, order = c(6, 1, 4))
+R.model_7_1_4 <- Arima(R.training.set, order = c(7, 1, 4))
+R.model_1_1_5 <- Arima(R.training.set, order = c(1, 1, 5))
+R.model_3_1_5 <- Arima(R.training.set, order = c(3, 1, 5))
+R.model_11_1_5 <- Arima(R.training.set, order = c(11, 1, 5))
+R.model_1_1_6 <- Arima(R.training.set, order = c(1, 1, 6))
+R.model_3_1_6 <- Arima(R.training.set, order = c(3, 1, 6))
+R.model_11_1_6 <- Arima(R.training.set, order = c(11, 1, 6))
+
+R.models <- list(
+  R.model_1_1_1, 
+  R.model_3_1_1, 
+  R.model_6_1_1, 
+  R.model_7_1_1, 
+  R.model_9_1_1, 
+  R.model_1_1_3, 
+  R.model_3_1_3, 
+  R.model_6_1_3, 
+  R.model_7_1_3, 
+  R.model_9_1_3, 
+  R.model_1_1_4, 
+  R.model_3_1_4, 
+  R.model_6_1_4, 
+  R.model_7_1_4, 
+  R.model_1_1_5, 
+  R.model_3_1_5, 
+  R.model_11_1_5,
+  R.model_1_1_6, 
+  R.model_3_1_6, 
+  R.model_11_1_6)
+```
+```{r, include=FALSE}
+R.aicc_values <- sapply(R.models, function(model) AICc(model))
+R.best_arima_model_index <- which.min(R.aicc_values)
+print(R.models[[R.best_arima_model_index]])
+```
+```{r}
+R.ARIMA_forecast<-forecast(R.model_11_1_5,h=length(R.test.set))
+autoplot(R.ARIMA_forecast) +
+  autolayer(R.test.set, series="Test Set") +
+  ggtitle("ARIMA(11,1,5) Forecast: Regular-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+Within the determined set of orders for various ARIMA models, the authors then calculated the AICc values for each model which concluded that ARIMA (11, 1, 5) shows the lowest value of 622.46 and is suitable for the dataset – regular-milled rice prices. The authors then proceed to show the plot of the determined best ARIMA model for this rice variety.
+
+For the well-milled rice, the PACF of the differenced (d=1) data shows significant spikes at lag 1 then drops off more quickly and cuts off at lag 7. The ACF plot also shows an oscillating pattern with a significant spike at lag 1 and gradually decreases in the latter parts. After observations, the authors generated various orders for ARIMA.
+
+```{r}
+W.model_1_1_1 <- Arima(W.training.set, order = c(1, 1, 1))
+W.model_6_1_1 <- Arima(W.training.set, order = c(6, 1, 1))
+W.model_3_1_4 <- Arima(W.training.set, order = c(3, 1, 4))
+W.model_7_1_4 <- Arima(W.training.set, order = c(7, 1, 4))
+W.model_1_1_6 <- Arima(W.training.set, order = c(1, 1, 6))
+W.model_3_1_6 <- Arima(W.training.set, order = c(3, 1, 6))
+W.model_3_1_7 <- Arima(W.training.set, order = c(3, 1, 7))
+W.model_3_1_11 <- Arima(W.training.set, order = c(3, 1, 11))
+W.model_6_1_11 <- Arima(W.training.set, order = c(6, 1, 11))
+W.model_7_1_11 <- Arima(W.training.set, order = c(7, 1, 11))
+W.model_1_1_12 <- Arima(W.training.set, order = c(1, 1, 12))
+W.model_3_1_12 <- Arima(W.training.set, order = c(3, 1, 12))
+W.model_6_1_12 <- Arima(W.training.set, order = c(6, 1, 12))
+W.model_7_1_12 <- Arima(W.training.set, order = c(7, 1, 12))
+
+W.models <- list(
+  W.model_1_1_1, 
+  W.model_6_1_1,
+  W.model_3_1_4,
+  W.model_7_1_4,
+  W.model_1_1_6,
+  W.model_3_1_6, 
+  W.model_3_1_7,
+  W.model_3_1_11,
+  W.model_6_1_11,
+  W.model_7_1_11,
+  W.model_1_1_12,
+  W.model_3_1_12,
+  W.model_6_1_12,
+  W.model_7_1_12)
+```
+
+The authors then proceeded to evaluate the AICc values and concluded that ARIMA (3, 1, 11) has the lowest value of 639.39 and is suitable for the dataset – well-milled rice prices. The plot is also displayed to further verify the accuracy of this order.
+
+```{r, include=FALSE}
+W.aicc_values <- sapply(W.models, function(model) AICc(model))
+W.best_arima_model_index <- which.min(W.aicc_values)
+print(W.models[[W.best_arima_model_index]])
+```
+
+```{r}
+W.ARIMA_forecast<-forecast(W.model_3_1_11,h=length(W.test.set))
+autoplot(W.ARIMA_forecast) +
+  autolayer(W.test.set, series="Test Set") +
+  ggtitle("ARIMA(3,1,11) Forecast: Well-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+#### Naïve Method
+
+To see the relation of the last observed value to the future values, the naïve method was used. This served as a basis for comparison to other sophisticated models utilized in this study. This method does not account for seasonality or trends. The graph then reflects a forecast of data with linear behavior in both the regular-milled and well-milled data.
+
+```{r}
+R.naive_model <- naive(R.training.set, h=length(R.test.set))
+R.naive_forecast <- forecast(R.naive_model, h=length(R.test.set))
+autoplot(R.naive_forecast) +
+  autolayer(R.test.set, series="Test Set") +
+  ggtitle("Naive Method Forecast: Regular-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+
+W.naive_model <- naive(W.training.set, h=length(W.test.set))
+W.naive_forecast <- forecast(W.naive_model, h=length(W.test.set))
+autoplot(W.naive_forecast) +
+  autolayer(W.test.set, series="Test Set") +
+  ggtitle("Naive Method Forecast: Well-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+### Exponential Smoothing
+#### Error Trend Seasonality (ETS) Model
+
+For the dataset containing the prices for regular-milled rice, the ETS model is in the form ETS (M, Ad, A) where the error type is multiplicative, the trend type is additive damped, and the seasonal type is additive. For the dataset containing the prices for well-milled rice, the ETS model is in the form ETS (M, A, A) where the error type is multiplicative, and the trend type and seasonal type are both additive. The summary of smoothing parameters shows that, for both regular-milled and well-milled types, the α=0.9999 indicating that the model with a value close to 1 heavily relies on recent observations. Both datasets also resulted in the same value for γ which is γ=1e-04. This indicates weak seasonal effects.
+
+```{r}
+R.fit_ets <- ets(R.training.set)
+summary(R.fit_ets)
+R.ets_forecast <- forecast(R.fit_ets, h = length(R.test.set))
+autoplot(R.ets_forecast) +
+  autolayer(R.test.set, series = "Test Data") +
+  ggtitle("ETS Forecast on Regular-Milled Rice") +
+  ylab("Time") +
+  xlab("Values")
+
+W.fit_ets <- ets(W.training.set)
+W.ets_forecast <- forecast(W.fit_ets, h = length(W.test.set))
+autoplot(W.ets_forecast) +
+  autolayer(W.test.set, series = "Test Data") +
+  ggtitle("ETS Forecast on Well-Milled Rice") +
+  ylab("Time") +
+  xlab("Values")
+```
+
+#### Holt-Linear’s Trend
+
+As the time series of both data, regular-milled and well-milled rice prices, of this study, exhibits trends, the authors used Holt Linear’s Trend method to account for the trend component effectively. After plotting the forecasted data points using the Holt Linear’s trend, the model identifies an increasing trend in rice prices, which continues based on historical patterns. Upon overlaying the test set with the forecasted graph of this model, it shows that the test set values fall within the prediction intervals. This shows the model is reasonably accurate for predictions though it grows with uncertainty in long-term forecasts.
+
+```{r}
+R.HL_model<-holt(R.training.set,h=length(R.test.set))
+R.HL_forecast<-forecast(R.HL_model,h=length(R.test.set))
+autoplot(R.HL_forecast) +
+  autolayer(R.test.set, series="Test Set") +
+  ggtitle("Holt Linear's Trend Forecast: Regular-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+
+W.HL_model<-holt(W.training.set,h=length(W.test.set))
+W.HL_forecast<-forecast(W.HL_model,h=length(W.test.set))
+autoplot(W.HL_forecast) +
+  autolayer(W.test.set, series="Test Set") +
+  ggtitle("Holt Linear's Trend Forecast: Well-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+#### Holt-Winters' Seasonality
+
+The authors decided to include Holt-Winter's Seasonality to account for the trend, seasonality, and level components in time series data. The model utilizes three smoothing parameters – alpha (𝛼) for adjusting the level of recent observations, beta (𝛽) for the trend over time, and gamma (𝛾) for the seasonal variations. Since the previous plots showed subtle seasonality, both the additive and multiplicative method was considered for comparison. The following table shows the alpha, beta, and gamma of both methods for Regular-Milled and Well-Milled Rice.
+
+```{r, include=FALSE}
+R.HWA_model <- hw(R.training.set, seasonal="additive", damped = FALSE, h=length(R.test.set))
+R.HWA_forecast <- forecast(R.HWA_model, h = length(R.test.set))
+
+W.HWA_model <- hw(W.training.set, seasonal="additive", damped = FALSE, h=length(W.test.set))
+W.HWA_forecast <- forecast(W.HWA_model, h = length(W.test.set))
+```
+
+```{r}
+R.alpha <- R.HWA_model$model$par["alpha"]
+R.beta <- R.HWA_model$model$par["beta"]
+R.gamma <- R.HWA_model$model$par["gamma"]
+cat("Regular-Milled Rice Holt-Winters Additive Model Parameters:\n")
+cat("Alpha:", round(R.alpha, 4), " Beta:", round(R.beta, 4), " Gamma:", round(R.gamma, 4), "\n")
+
+W.alpha <- W.HWA_model$model$par["alpha"]
+W.beta <- W.HWA_model$model$par["beta"]
+W.gamma <- W.HWA_model$model$par["gamma"]
+cat("Well-Milled Rice Holt-Winters Additive Model Parameters:\n")
+cat("Alpha:", round(W.alpha, 4), " Beta:", round(W.beta, 4), " Gamma:", round(W.gamma, 4), "\n")
+```
+Upon analysis of the dataset, the alpha parameter for both types of rice is close to 1, indicating that recent observations are more emphasized in the forecast. On the other hand, the beta and gamma parameters are relatively small, which suggests that minimal adjustments were made for the trend and seasonal components.
+
+```{r}
+autoplot(R.HWA_forecast) +
+  autolayer(R.test.set, series = "Test Set") +
+  ggtitle("Holt-Winters Additive Model Forecast: Regular-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+autoplot(W.HWA_forecast) +
+  autolayer(W.test.set, series = "Test Set") +
+  ggtitle("Holt-Winters Additive Model Forecast: Well-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+```{r}
+R.HWM_model <- hw(R.training.set, seasonal="multiplicative", damped = FALSE, h=length(R.test.set))
+R.HWM_forecast <- forecast(R.HWM_model, h = length(R.test.set))
+
+W.HWM_model <- hw(W.training.set, seasonal="multiplicative", damped = FALSE, h=length(W.test.set))
+W.HWM_forecast <- forecast(W.HWM_model, h = length(W.test.set))
+```
+
+```{r, include=FALSE}
+summary(R.HWM_model)
+summary(W.HWM_model)
+```
+
+```{r}
+autoplot(R.HWM_forecast) +
+  autolayer(R.test.set, series = "Test Set") +
+  ggtitle("Holt-Winters Multiplicative Model Forecast: Regular-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+autoplot(W.HWM_forecast) +
+  autolayer(W.test.set, series = "Test Set") +
+  ggtitle("Holt-Winters Multiplicative Model Forecast: Well-Milled Rice") +
+  xlab("Time") +
+  ylab("Values")
+```
+
+
+#### Plot of 12-step fitted values
+
+The authors incorporate the plot of 12-step fitted values on the training data. This helps visually assess the performance and accuracy of the ARIMA model in capturing the underlying patterns in the training data. This is a crucial step for model validation. The plot shows that the overlying graph of the fitted values is similar to the graph of the training set. This means that the ARIMA model accurately captures the patterns in the training set. Hence, the authors considered it as one of the best models for further testing. Both the ARIMA model for Regular-Milled and Well-Milled underwent the 12-step fitting.
+
+```{r}
+autoplot(R.training.set, series="Training data") +
+  autolayer(fitted(R.model_11_1_5, h=12),
+            series="12-step fitted values")
+
+autoplot(W.training.set, series="Training data") +
+  autolayer(fitted(W.model_3_1_11, h=12),
+            series="12-step fitted values")
+```
+
+### Comparison of Models
+
+Several error metrics such as the Root Mean Squared Error (RMSE), Mean Absolute Error (MAE), and Mean Absolute Percentage Error (MAPE) were used as the main basis for comparing the accuracy of various forecasting models: ARIMA models, Naive Method, Error Trend Seasonality Method, Holt Linear’s Trend Method, and Holt-Winter's Additive and Multiplicative Seasonality Models. On the other hand, the corrected Akaike Information Criterion (AICc) was used among the ARIMA models with different p, d, and q values.  The table below shows the summary of the AICc values of the ARIMA models that were tested.
+
+```{r}
+R.orders <- sapply(R.models, function(model) {
+  order <- arimaorder(model)
+  return(paste(order[1], order[2], order[3], sep = ","))
+})
+
+R.aicc_values <- sapply(R.models, function(model) AICc(model))
+
+R.arima_table <- data.frame(
+  ARIMA_Order = R.orders,
+  AICc = R.aicc_values
+)
+print(R.arima_table)
+```
+
+```{r}
+W.orders <- sapply(W.models, function(model) {
+  order <- arimaorder(model)
+  return(paste(order[1], order[2], order[3], sep = ","))
+})
+
+W.aicc_values <- sapply(W.models, function(model) AICc(model))
+
+W.arima_table <- data.frame(
+  ARIMA_Order = W.orders,
+  AICc = W.aicc_values
+)
+
+print(W.arima_table)
+```
+As shown in the table above, ARIMA (11,1,5) has the smallest AICc for the Regular-Milled Rice and ARIMA (3,1,11) for the Well-Milled Rice. This means that these models best capture the behavior of the test set. Hence, these ARIMA models were chosen to be compared to the other forecasting methods to assess which model best fits the dataset. Also, the following table below shows the error metrics that were used as a basis for measuring the accuracy of various forecasting methods.
+
+Calculated Errors of Regular Milled Rice
+```{r}
+R.Accuracy_Models <- list(
+  "ARIMA" = accuracy(R.ARIMA_forecast),
+  "Naive Method" = accuracy(R.naive_forecast),
+  "Holt Linear's Trend" = accuracy(R.HL_forecast),
+  "Holt-Winters Additive Model" = accuracy(R.HWA_forecast),
+  "Holt-Winters Multiplicative Model" = accuracy(R.HWM_forecast)
+)
+
+R.extract_metrics <- function(accuracy_output) {
+  accuracy_output[ , c("RMSE", "MAE", "MAPE")]
+}
+R.metrics_list <- lapply(R.Accuracy_Models, R.extract_metrics)
+R.accuracy_df <- bind_rows(R.metrics_list, .id = "Model")
+print(R.accuracy_df)
+```
+
+```{r}
+W.Accuracy_Models <- list(
+  "ARIMA" = accuracy(W.ARIMA_forecast),
+  "Naive Method" = accuracy(W.naive_forecast),
+  "Holt Linear's Trend" = accuracy(W.HL_forecast),
+  "Holt-Winters Additive Model" = accuracy(W.HWA_forecast),
+  "Holt-Winters Multiplicative Model" = accuracy(W.HWM_forecast)
+)
+
+W.extract_metrics <- function(accuracy_output) {
+  accuracy_output[ , c("RMSE", "MAE", "MAPE")]
+}
+W.metrics_list <- lapply(W.Accuracy_Models, W.extract_metrics)
+W.accuracy_df <- bind_rows(W.metrics_list, .id = "Model")
+print(W.accuracy_df)
+```
+
+As shown in the table above, ARIMA (11,1,5) and ARIMA (3,1,11) have the least value in terms of RMSE, MAE, and MAPE for both Regular-Milled Rice and Well-Milled Rice, respectively. This means that both ARIMA models account for the least error among all the forecasting models and were thus chosen as the best forecasting model to be used in the five-year forecast of rice prices. On the other hand, several models were considered to be the worst models as different error metrics reflected different models with the highest error value. 
+
+### Model Optimization
+
+Using the best ARIMA models that were determined after the comparison of various error metrics, the authors then proceeded to optimize the models to ensure accurate and reliable five-year forecasts of rice prices – Regular-Milled and Well-Milled. From the determined best order of these ARIMA models, it was then used to generate a five-year forecast from January 2024 to December 2028. The generated plot then shows the future state of these rice prices where regular-milled rice, will exhibit an increase in price for the starting half of the said range and will later on have oscillating values and relatively decreasing. For well-milled rice, there will be a slight increase and decrease in the prices but will then continuously increase at the point after the decrease in prices.
+
+```{r}
+R.ARIMA_Model<- Arima(Reg_price, order = c(11, 1, 5))
+R.five.year.forecast <- forecast(R.ARIMA_Model, h=60)
+autoplot(R.five.year.forecast) +
+  ggtitle("Regular Milled Rice Price Forecast for the Next Five Years") +
+  xlab("Time") +
+  ylab("Values") 
+```
+
+## 3. RESULTS AND DISCUSSIONS
+
+As reflected by the time series plot around 2008, rice prices in the Philippines surged to P42.50 per kilogram, a level linked to global crises driven by spikes in oil prices and market panic. A similar crisis occurred in 2018 when well-milled rice (WMR) prices rose to nearly P50.00 per kilogram, a 14% increase from the previous year, and regular-milled rice (RMR) prices increased by 16%. This was due to depleted National Food Authority (NFA) stocks, import delays, and reduced local production [7] [8]. 
+The decrease in rice prices in 2019 resulted from the Philippine government's enactment of the Rice Tariffication Law (RTL) —  which significantly altered rice sector policies. RTL lowered both consumer and producer rice prices, impacting households involved in production and consumption. However, in December 2023, rice prices increased at the fastest rate observed in the last 14 years, which was reflected in the time series plot [9] [10]. 
+
+### 3.1 Forecasting of Regular-Milled Rice Price Data
+```{r, include=FALSE}
+#ETS
+R.ETS_Model_Forecast <- ets(Reg_price)
+R.five.year.ETS.forecast <- forecast(R.ETS_Model_Forecast, h=60)
+
+#Naive 5 years
+R.Naive_Model_Forecast <- naive(Reg_price, h=60)
+R.five.year.naive.forecast <- forecast(R.Naive_Model_Forecast, h=60) 
+
+#Holt Linear 5 years
+R.HL_Model_Forecast <- holt(Reg_price, h=60)
+R.five.year.HL.forecast <- forecast(R.HL_Model_Forecast, h=60)
+
+#Holt Winter Additive 5 years
+R.HWA_Model_Forecast <- hw(Reg_price, seasonal= "additive", damped = FALSE, h=60)
+R.five.year.HWA.forecast <- forecast(R.HWA_Model_Forecast, h=60)
+
+#Holt Winter Multiplicative 5 years
+R.HWM_Model_Forecast <- hw(Reg_price, seasonal= "multiplicative", damped = FALSE, h=60)
+R.five.year.HWM.forecast <- forecast(R.HWM_Model_Forecast, h=60)
+
+R.forecast1 <- forecast(R.five.year.forecast, h=60)
+R.forecast2 <- forecast(R.five.year.HWA.forecast, h=60)
+R.forecast3 <- forecast(R.five.year.HWM.forecast, h=60)
+R.forecast4 <- forecast(R.five.year.HL.forecast, h=60)
+R.forecast5 <- forecast(R.five.year.ETS.forecast, h=60)
+R.forecast6 <- forecast(R.five.year.naive.forecast, h=60)
+```
+
+```{r}
+(autoplot(Reg_price) +
+    autolayer(R.forecast6, series = "Naive") +
+    autolayer(R.forecast5, series = "ETS") +
+    autolayer(R.forecast4, series = "Holt Linear") +
+    autolayer(R.forecast3, series = "Holt Winters Multiplicative")+
+    autolayer(R.forecast2, series = "Holt Winters Additive") +
+    autolayer(R.forecast1, series = "ARIMA(11,1,5)") +
+    scale_color_manual(values=c(
+      "ARIMA(11,1,5)"="red", 
+      "Naive"="purple", 
+      "ETS"="blue", 
+      "Holt Linear"="green", 
+      "Holt Winters Additive"="orange", 
+      "Holt Winters Multiplicative" = "yellow")) +
+    guides(colour = guide_legend("Model"))+ xlab("Year") +
+    ylab("Price") +
+    theme(legend.position = "bottom"))
+```
+
+The authors utilized ARIMA (11,1,5), Exponential Smoothing, Naive Method, Holt Linear’s Trend Method, and Holt-Winter's Additive and Multiplicative Seasonality Methods to forecast the possible range of Regular-Milled Rice prices from January 2024 to December 2028. Of all models, ARIMA (11,1,5) was chosen to be the best model as it has the least error value regarding its MAE= 0.2790188, MAPE= 1.441067, and RMSE= 0.5926623. Based on the graph, Regular-Milled Rice prices will fluctuate in the next five years, yet with no noticeable increasing or decreasing trend. Hence, the model implies that Regular-Milled Rice prices will likely fluctuate observing a stationary pattern in the next five years.  
+
+### 3.2 Forecasting of Well-Milled Rice Price Data
+
+```{r}
+W.ARIMA_Model<- Arima(Well_price, order = c(3, 1, 11))
+W.five.year.forecast <- forecast(W.ARIMA_Model, h=60)
+autoplot(W.five.year.forecast) +
+  ggtitle("Well Milled Rice Price Forecast for the Next Five Years") +
+  xlab("Time") +
+  ylab("Values") 
+```
+
+```{r, include=FALSE}
+#ETS
+W.ETS_Model_Forecast <- ets(Well_price)
+W.five.year.ETS.forecast <- forecast(W.ETS_Model_Forecast, h=60)
+
+#Naive 5 years
+W.Naive_Model_Forecast <- naive(Well_price, h=60)
+W.five.year.naive.forecast <- forecast(W.Naive_Model_Forecast, h=60) 
+
+#Holt Linear 5 years
+W.HL_Model_Forecast <- holt(Well_price, h=60)
+W.five.year.HL.forecast <- forecast(W.HL_Model_Forecast, h=60)
+
+#Holt Winter Additive 5 years
+W.HWA_Model_Forecast <- hw(Well_price, seasonal= "additive", damped = FALSE, h=60)
+W.five.year.HWA.forecast <- forecast(W.HWA_Model_Forecast, h=60)
+
+#Holt Winter Multiplicative 5 years
+W.HWM_Model_Forecast <- hw(Well_price, seasonal= "multiplicative", damped = FALSE, h=60)
+W.five.year.HWM.forecast <- forecast(W.HWM_Model_Forecast, h=60)
+
+W.forecast1 <- forecast(W.five.year.forecast, h=60)
+W.forecast2 <- forecast(W.five.year.HWA.forecast, h=60)
+W.forecast3 <- forecast(W.five.year.HWM.forecast, h=60)
+W.forecast4 <- forecast(W.five.year.HL.forecast, h=60)
+W.forecast5 <- forecast(W.five.year.ETS.forecast, h=60)
+W.forecast6 <- forecast(W.five.year.naive.forecast, h=60)
+```
+
+```{r}
+(autoplot(Well_price) +
+    autolayer(W.forecast6, series = "Naive") +
+    autolayer(W.forecast5, series = "ETS") +
+    autolayer(W.forecast4, series = "Holt Linear") +
+    autolayer(W.forecast3, series = "Holt Winters Multiplicative")+
+    autolayer(W.forecast2, series = "Holt Winters Additive") +
+    autolayer(W.forecast1, series = "ARIMA(3,1,11)") +
+    scale_color_manual(values=c(
+      "ARIMA(3,1,11)"="red", 
+      "Naive"="purple", 
+      "ETS"="blue", 
+      "Holt Linear"="green", 
+      "Holt Winters Additive"="orange", 
+      "Holt Winters Multiplicative" = "yellow")) +
+    guides(colour = guide_legend("Model"))+ xlab("Year") +
+    ylab("Price") +
+    theme(legend.position = "bottom"))
+```
+
+The authors utilized ARIMA (3,1,11), Exponential Smoothing, Naive Method, Holt Linear’s Trend Method, and Holt-Winters' Additive and Multiplicative Seasonality Methods to forecast the possible range of Well-Milled Rice prices from January 2024 to December 2028. Of all models, ARIMA (3,1,11) was chosen to be the best model as it has the least error value regarding its MAE= 0.2790188 , MAPE= 1.219347, and RMSE= 0.6133995. Based on the graph, Well-Milled Rice prices will gradually increase in the next five years, as it has a slightly increasing trend based on the said graph. In addition, the model also implies that rice prices won’t decrease but would rather become stable for a while before increasing —  as reflected by the ladder-like fluctuations in the said graph.     
+
+## 4. CONCLUSION
+
+Based on the results and findings of this study, the Regular-Milled and Well-Milled Rice prices in Mindanao have a slightly increasing trend. Hence, rice prices will be increasing gradually in the next five years. Furthermore, the results show that rice prices will continue to fluctuate in the succeeding years. It was revealed that rice prices have a certain range for a given time before they gradually increase — similar to the fluctuations experienced before. According to this study’s findings, rice prices would not exponentially increase. This means that rice prices for the succeeding five years will yield a small difference when compared to the actual data that was used in this study. With this, the findings of this study have valuable implications for various stakeholders.
+
+Consumers and farmers can utilize the information presented in this study to make informed decisions. Consumers may adjust their purchasing decisions with the anticipated rice price fluctuations. On the other hand, farmers can know the time for their optimal profit by adjusting their production strategies based on price projections and planning their resources effectively.  
+
+Furthermore, businesses in Mindanao and food authorities can refer to the results of this study as a basis to amplify the methods or processes used in their respective fields. Businesses can adjust their pricing and distribution based on price fluctuations, enhancing their profitability and competitiveness. Food authorities can anticipate supply-demand imbalances, allocate resources efficiently, and implement policies that stabilize rice prices and ensure food security for the population.
+
+The information included in this study can shed light on the possible trend in the prices of Regular-Milled and Well-Milled Rice in Mindanao for the succeeding years. The comprehensive forecasting analysis using ARIMA (3,1,11) on Regular-Milled Rice and ARIMA (11,1,5) on Well-Milled Rice can predict the future trajectory of rice prices in Mindanao.
+
+## RECOMMENDATIONS
+The findings can be improved by using different models or making the dataset larger by including more historical values.  By doing this, the rice prices’ behavior can be assessed more accurately as the fitted models can capture the underlying characteristics of the data more effectively. Furthermore, various findings can be made that will provide insights that identify the possible factors affecting the fluctuations in rice prices.
+
+## CODES
+Rstudio application was the main platform used in time series analysis, model formulation, and forecasting of historical data in this study. The authors installed and utilized various packages and libraries available in the said platform that are necessary for writing the code. All the essential materials used in this study, such as the dataset and .rmd file for the code, are collated in an online database that can be accessed through the link: https://github.com/kliezhella/AMAT132-Final-Forecasting-Project.
+
+## REFERENCES
+[1]	NAT, “The Rice Economy and the Role of Policy in Southeast Asia,” DPS - SEARCA, 2018. https://www.searca.org/pubs/discussion-papers?pid=398
+[2]	C. T. N. Lim, “Empirical Analysis of Rice Prices, Production, and Consumption in the Philippines: Implications for...,” Society of Interdisciplinary Business Research, Sep. 26, 2023. https://www.researchgate.net/publication/374194906_Empirical_Analysis_of_Rice_Prices_Production_and_Consumption_in_the_Philippines_Implications_for_Self-Sufficiency_Policy
+[3]	A. Merez, “‘Too Ethnic’? Here’s Why Rice is Life for Filipinos,” Philippine Institute for Development Studies, Aug. 23, 2021. https://www.pids.gov.ph/details/too-ethnic-here-s-why-rice-is-life-for-filipinos
+[4]	V. R. Joseph, “Optimal ratio for data splitting,” Statistical Analysis and Data Mining: The ASA Data Science Journal, vol. 15, no. 4, pp. 531–538, Apr. 2022, doi: 10.1002/sam.11583.
+[5]	J. Balilla, M. Bondoc, K. A. Castro, and A. Padua, “A 6-YEAR FORECAST OF EGG, RICE, AND ONION RETAIL PRICES IN THE PHILIPPINES: AN APPLICATION OF ARIMA AND...,” unknown, May 20, 2023. https://www.researchgate.net/publication/370910461_A_6-YEAR_FORECAST_OF_EGG_RICE_AND_ONION_RETAIL_PRICES_IN_THE_PHILIPPINES_AN_APPLICATION_OF_ARIMA_AND_SARIMA_MODELS
+[6]	R.  Hyndman and G. Athanasopoulos, Forecasting Principles and Practice. OTexts.com/fpp3, 2021. [Online]. Available: https://otexts.com/fpp3/non-seasonal-arima.html
+[7]	R. Tiglao, “Rice prices soar due to Aquino govt bungling,” Philippine Institute for Development Studies, Jun. 17, 2014. https://www.pids.gov.ph/details/rice-prices-soar-due-to-aquino-govt-bungling (accessed Jun. 07, 2024).
+[8]	R. Montemayor, “The rice tariffication law and its role in the current rice crisis,” VERA Files, Sep. 10, 2023. https://verafiles.org/articles/the-rice-tariffication-law-and-its-role-in-the-current-rice-crisis
+[9]	J.  Balié, N. Minot, and H. G. Valera, “Distributional impacts of the rice tariffication policy in the Philippines,” Economic Analysis and Policy, vol. 69, pp. 289–306, Dec. 2020, doi: 10.1016/j.eap.2020.12.005.
+[10]	T. CORDERO, “Philippines ends 2023 with 14-year high rice inflation in December,” GMA News Online, Jan. 05, 2024. Accessed: Jun. 07, 2024. [Online]. Available: https://www.gmanetwork.com/news/money/economy/893220/philippines-ends-2023-with-14-year-high-rice-inflation-in-december/story/
